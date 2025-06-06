@@ -1,53 +1,48 @@
-name: Kernel Build
+name: Kernel Compilation
 
 on:
-  push:
-    branches: [ main ] # Trigger workflow saat ada push ke branch main
-  workflow_dispatch: # Trigger workflow secara manual
+  workflow_dispatch:
+    inputs:      
+      tag:
+        description: 'Release Tag'
+        required: true    
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Penting untuk submodule dan history
+    - name: Checkout source
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      - name: Set up environment
-        run: |
-          sudo apt update
-          sudo apt install -y git bc bison flex libncurses5-dev libssl-dev cpio
-          # Tambahkan dependencies lain yang dibutuhkan oleh build_kernel.sh
+    - name: Set up build environment
+      run: |
+        sudo apt update -y  
+        sudo apt install libncurses5-dev -y
 
-      - name: Download Toolchains (Jika belum ada di repo)
-        run: |
-          # Contoh jika toolchains tidak ada di repo dan perlu di download
-          # Anda perlu mengganti URL dengan URL yang sesuai
-          # mkdir -p toolchains
-          # wget -q https://example.com/arm-gnu-toolchain.tar.xz -O toolchains/arm-gnu-toolchain.tar.xz
-          # tar -xf toolchains/arm-gnu-toolchain.tar.xz -C toolchains
-          # wget -q https://example.com/clang.tar.xz -O toolchains/clang.tar.xz
-          # tar -xf toolchains/clang.tar.xz -C toolchains
-          echo "Toolchains sudah ada di repository atau sudah di download"
+    - name: Make build_kernel.sh executable
+      run: chmod +x build_kernel.sh
 
-      - name: Make AIK-Linux executable
-        run: chmod +x AIK-Linux/repackimg.sh
+    - name: Compile Kernel
+      run: |
+        bash build_kernel.sh
 
-      - name: Build Kernel
-        run: bash build_kernel.sh
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: KernelSU-Next-SM-A042F-${{ github.event.inputs.tag }}
+        path: build/*.tar
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-build
-          path: build/*.tar # Atau path yang sesuai dengan hasil build Anda
-
-      - name: Create Release (Optional)
-        uses: ncipollo/release-action@v1
-        if: github.ref == 'refs/heads/main' # Hanya buat release dari branch main
-        with:
-          tag: latest
-          name: Kernel Build - Latest
-          artifacts: build/*.tar # Atau path yang sesuai
+    - name: Create release
+      uses: ncipollo/release-action@v1
+      if: github.ref == 'refs/heads/main' # Hanya buat release dari main
+      with:
+        tag: ${{ github.event.inputs.tag }}
+        name: "KernelSU-Next-SM-A042F-${{ github.event.inputs.tag }}"
+        draft: false
+        prerelease: false
+        token: ${{ secrets.TOKEN }}          
+        artifacts: "build/*.tar"
+        body: "Commit SHA: ${{ github.sha }}"
